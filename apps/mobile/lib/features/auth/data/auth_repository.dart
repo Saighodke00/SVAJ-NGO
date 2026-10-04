@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:savj_mobile/core/api/api_client.dart';
-import 'package:savj_mobile/features/auth/domain/user_model.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:savj_mobile/core/api/providers.dart';
+import 'package:savj_mobile/features/auth/domain/user_model.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
@@ -19,19 +19,12 @@ class AuthRepository {
 
   Future<User?> login(String email, String password) async {
     try {
-      final response = await _dio.post('/auth/login', data: {
+      final response = await _dio.post('/api/auth/login', data: {
         'email': email,
         'password': password,
       });
-
       if (response.statusCode == 200 && response.data['success'] == true) {
-        final data = response.data['data'];
-        final tokens = data['tokens'];
-        
-        await _storage.write(key: 'access_token', value: tokens['access_token']);
-        await _storage.write(key: 'refresh_token', value: tokens['refresh_token']);
-        
-        return User.fromJson(data['user']);
+        return User.fromJson(response.data['user']);
       }
     } catch (e) {
       throw Exception('Login failed: ${e.toString()}');
@@ -41,20 +34,13 @@ class AuthRepository {
 
   Future<User?> register(String email, String password, String fullName) async {
     try {
-      final response = await _dio.post('/auth/register', data: {
+      final response = await _dio.post('/api/auth/register', data: {
         'email': email,
         'password': password,
-        'full_name': fullName,
+        'fullName': fullName,
       });
-
-      if (response.statusCode == 201 && response.data['success'] == true) {
-        final data = response.data['data'];
-        final tokens = data['tokens'];
-        
-        await _storage.write(key: 'access_token', value: tokens['access_token']);
-        await _storage.write(key: 'refresh_token', value: tokens['refresh_token']);
-        
-        return User.fromJson(data['user']);
+      if (response.statusCode == 200 && response.data['success'] == true) {
+        return User.fromJson(response.data['user']);
       }
     } catch (e) {
       throw Exception('Registration failed: ${e.toString()}');
@@ -63,35 +49,21 @@ class AuthRepository {
   }
 
   Future<User?> checkAuth() async {
-    final token = await _storage.read(key: 'access_token');
-    if (token == null) return null;
-
     try {
-      final response = await _dio.get('/auth/me');
-      if (response.statusCode == 200 && response.data['success'] == true) {
-        return User.fromJson(response.data['data']);
+      final response = await _dio.get('/api/auth/me');
+      if (response.statusCode == 200 && response.data['user'] != null) {
+        return User.fromJson(response.data['user']);
       }
     } catch (e) {
-      // Token might be invalid or expired (and refresh failed). Clear tokens.
-      await _storage.delete(key: 'access_token');
-      await _storage.delete(key: 'refresh_token');
+      await _storage.delete(key: 'session_id');
     }
     return null;
   }
 
   Future<void> logout() async {
     try {
-      final refreshToken = await _storage.read(key: 'refresh_token');
-      if (refreshToken != null) {
-        await _dio.post('/auth/logout', data: {
-          'refresh_token': refreshToken,
-        });
-      }
-    } catch (_) {
-      // Ignore errors on logout
-    } finally {
-      await _storage.delete(key: 'access_token');
-      await _storage.delete(key: 'refresh_token');
-    }
+      await _dio.post('/api/auth/logout');
+    } catch (_) {}
+    await _storage.delete(key: 'session_id');
   }
 }

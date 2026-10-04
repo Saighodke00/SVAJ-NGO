@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:savj_mobile/core/api/api_client.dart';
+import 'package:savj_mobile/core/api/providers.dart';
 import 'package:savj_mobile/features/tasks/domain/task_model.dart';
 
 final taskRepositoryProvider = Provider<TaskRepository>((ref) {
@@ -12,17 +12,10 @@ class TaskRepository {
 
   TaskRepository(this._dio);
 
-  Future<List<TaskModel>> fetchNearbyTasks(double lat, double lon, {int radiusKm = 10}) async {
+  Future<List<TaskModel>> fetchNearbyTasks() async {
     try {
-      final response = await _dio.post('/tasks/nearby', data: {
-        'lat': lat,
-        'lon': lon,
-        'radius_km': radiusKm,
-        'page': 1,
-        'page_size': 20,
-      });
-
-      if (response.statusCode == 200 && response.data['success'] == true) {
+      final response = await _dio.get('/api/tasks/nearby');
+      if (response.statusCode == 200 && response.data['data'] != null) {
         final List items = response.data['data'];
         return items.map((e) => TaskModel.fromJson(e)).toList();
       }
@@ -32,13 +25,23 @@ class TaskRepository {
     }
   }
 
-  Future<TaskModel> createTask(Map<String, dynamic> payload) async {
+  Future<List<TaskModel>> fetchAllTasks() async {
     try {
-      final response = await _dio.post('/tasks', data: payload);
-      if (response.statusCode == 201 && response.data['success'] == true) {
-        return TaskModel.fromJson(response.data['data']);
+      final response = await _dio.get('/api/tasks');
+      if (response.statusCode == 200 && response.data['data'] != null) {
+        final List items = response.data['data'];
+        return items.map((e) => TaskModel.fromJson(e)).toList();
       }
-      throw Exception('Failed to create task');
+      return [];
+    } catch (e) {
+      throw Exception('Failed to fetch tasks: ${e.toString()}');
+    }
+  }
+
+  Future<bool> createTask(Map<String, dynamic> payload) async {
+    try {
+      final response = await _dio.post('/api/tasks', data: payload);
+      return response.statusCode == 200 && response.data['success'] == true;
     } catch (e) {
       throw Exception('Failed to create task: ${e.toString()}');
     }
