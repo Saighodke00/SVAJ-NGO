@@ -1,0 +1,3 @@
+-keep class io.flutter.** { *; }
+-keep class com.savj.app.** { *; }
+-dontwarn io.flutter.**
